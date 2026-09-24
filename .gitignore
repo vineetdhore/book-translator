@@ -1,0 +1,36 @@
+# Python build and cache files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime inputs, outputs, temporary data, and logs
+input/*
+!input/.gitkeep
+pages/original/*
+!pages/original/.gitkeep
+pages/translated/*
+!pages/translated/.gitkeep
+pages/text/*
+!pages/text/.gitkeep
+pages/translated_text/*
+!pages/translated_text/.gitkeep
+output/*
+!output/.gitkeep
+temp/*
+!temp/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
