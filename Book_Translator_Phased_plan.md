@@ -55,6 +55,8 @@ For each individual page:
 3. Clean common OCR defects such as broken words, malformed line breaks, and repeated headers or footers.
 4. Retain structural cues where practical: headings, paragraphs, lists, quotations, footnotes, and page numbers.
 
+Extraction uses validated direct text first, OCR only for image regions not covered by valid text, and full-page OCR as a fallback for image-only or corrupt text-layer pages. Mixed direct/OCR pages are recorded separately for review.
+
 ## Phase 5: Translate to English
 
 - Send one page, or safely sized chunks of a page, to the Google API.

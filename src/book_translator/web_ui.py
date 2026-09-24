@@ -184,9 +184,10 @@ class WorkflowRunner:
             self.store.step(
                 "extract",
                 "complete" if extraction.failed_pages == 0 else "warning",
-                f"{extraction.direct_text_pages} direct, {extraction.ocr_pages} OCR, {extraction.failed_pages} failed.",
+                f"{extraction.direct_text_pages} direct, {extraction.ocr_pages} OCR, {extraction.mixed_pages} mixed, {extraction.failed_pages} failed.",
                 direct_text_pages=extraction.direct_text_pages,
                 ocr_pages=extraction.ocr_pages,
+                mixed_pages=extraction.mixed_pages,
                 failed_pages=extraction.failed_pages,
             )
             self.store.message("Text extraction complete.")

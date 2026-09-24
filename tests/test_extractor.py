@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pymupdf
 
-from book_translator.extractor import extract_pages
+from book_translator.extractor import extract_pages, is_valid_direct_text
 from book_translator.splitter import split_pdf
 
 
@@ -41,3 +41,9 @@ def test_extract_pages_resumes_existing_text(tmp_path: Path) -> None:
     result = extract_pages(split.output_dir, output_dir=output_dir)
 
     assert result.skipped_pages == 1
+
+
+def test_direct_text_validation_rejects_broken_font_mapping() -> None:
+    assert not is_valid_direct_text("Valid\x01 text\x02 with\x03 corruption")
+    assert not is_valid_direct_text("à¤®à¤¶à¤ƒ " * 2)
+    assert is_valid_direct_text("Normal selectable text with punctuation.")

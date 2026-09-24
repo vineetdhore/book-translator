@@ -22,6 +22,7 @@ class ExtractionResult:
     output_dir: Path
     direct_text_pages: int
     ocr_pages: int
+    mixed_pages: int
     skipped_pages: int
     failed_pages: int
 
@@ -46,7 +47,7 @@ def extract_pages(
     destination = destination.expanduser()
     destination.mkdir(parents=True, exist_ok=True)
     page_records = page_records_by_number(manifest)
-    counts = {"direct": 0, "ocr": 0, "skipped": 0, "failed": 0}
+    counts = {"direct": 0, "ocr": 0, "mixed": 0, "skipped": 0, "failed": 0}
 
     for page_path in page_paths:
         page_number = page_number_from_path(page_path)
@@ -81,7 +82,12 @@ def extract_pages(
                     "error": None,
                 }
             )
-            counts["ocr" if method == "ocr" else "direct"] += 1
+            if method == "ocr":
+                counts["ocr"] += 1
+            elif method == "mixed_direct_and_ocr":
+                counts["mixed"] += 1
+            else:
+                counts["direct"] += 1
         except (OSError, RuntimeError, ValueError, pytesseract.TesseractError) as error:
             record.update(
                 {
@@ -98,6 +104,7 @@ def extract_pages(
         output_dir=destination,
         direct_text_pages=counts["direct"],
         ocr_pages=counts["ocr"],
+        mixed_pages=counts["mixed"],
         skipped_pages=counts["skipped"],
         failed_pages=counts["failed"],
     )
@@ -106,7 +113,7 @@ def extract_pages(
 def extract_page_text(
     page_path: Path, *, force_ocr: bool, tesseract_language: str
 ) -> tuple[str, str]:
-    """Extract selectable text or render a one-page PDF for Tesseract OCR."""
+    """Extract valid direct text, image-region text, or full-page OCR."""
     with pymupdf.open(page_path) as document:
         if document.needs_pass:
             raise ValueError("Page PDF is password-protected.")
@@ -114,12 +121,67 @@ def extract_page_text(
             raise ValueError("Expected a one-page PDF.")
         page = document[0]
         direct_text = clean_text(page.get_text("text"))
-        if not force_ocr and len(direct_text) >= MIN_SELECTABLE_TEXT_CHARACTERS:
+        text_blocks = page.get_text("blocks")
+        image_rects = image_rectangles(page)
+        direct_is_valid = (
+            not force_ocr
+            and len(direct_text) >= MIN_SELECTABLE_TEXT_CHARACTERS
+            and is_valid_direct_text(direct_text)
+        )
+        if direct_is_valid:
+            region_text = extract_image_region_text(
+                page, image_rects, text_blocks, tesseract_language
+            )
+            if region_text:
+                return f"{direct_text}\n\n{region_text}", "mixed_direct_and_ocr"
             return direct_text, "direct_text"
         image = render_page_for_ocr(page)
 
     ocr_text = clean_text(pytesseract.image_to_string(image, lang=tesseract_language))
     return ocr_text, "ocr"
+
+
+def is_valid_direct_text(text: str) -> bool:
+    """Reject text with signs of a broken PDF font-to-Unicode mapping."""
+    controls = sum(ord(character) < 32 and character not in "\n\r\t" for character in text)
+    mojibake = sum(text.count(marker) for marker in ("�", "ï¿½", "à¤"))
+    return controls < 3 and mojibake < 2
+
+
+def image_rectangles(page: pymupdf.Page) -> list[pymupdf.Rect]:
+    """Return distinct visible image rectangles on a page."""
+    rectangles: list[pymupdf.Rect] = []
+    for image in page.get_images(full=True):
+        for rectangle in page.get_image_rects(image):
+            if rectangle.width > 20 and rectangle.height > 20 and rectangle not in rectangles:
+                rectangles.append(rectangle)
+    return rectangles
+
+
+def extract_image_region_text(
+    page: pymupdf.Page,
+    image_rects: list[pymupdf.Rect],
+    text_blocks: list[tuple[Any, ...]],
+    tesseract_language: str,
+) -> str:
+    """OCR image regions that are not already covered by selectable text."""
+    if not image_rects or not hasattr(pytesseract, "image_to_data"):
+        return ""
+    direct_rects = [pymupdf.Rect(block[:4]) for block in text_blocks if block[4].strip()]
+    region_results: list[str] = []
+    for rectangle in image_rects:
+        if any(rectangle.intersects(text_rect) for text_rect in direct_rects):
+            continue
+        try:
+            pixmap = page.get_pixmap(matrix=pymupdf.Matrix(300 / 72, 300 / 72), clip=rectangle, alpha=False)
+            image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
+            data = pytesseract.image_to_data(image, lang=tesseract_language, output_type=pytesseract.Output.DICT)
+            words = [word for word, confidence in zip(data["text"], data["conf"]) if word.strip() and float(confidence) >= 35]
+            if len(words) >= 3:
+                region_results.append(" ".join(words))
+        except (OSError, RuntimeError, ValueError, pytesseract.TesseractError):
+            continue
+    return "\n\n".join(region_results)
 
 
 def render_page_for_ocr(page: pymupdf.Page) -> Image.Image:

@@ -75,6 +75,8 @@ book-translator extract "pages\original\झुंज"
 
 Text is saved as UTF-8 files in `pages/text/<book name>/`. The job manifest is updated after every page, so rerunning the command skips completed pages. For scanned books, install Tesseract and use an installed language pack such as `--tesseract-language mar` for Marathi OCR.
 
+Extraction uses a hybrid strategy. Valid selectable text is retained directly. Text embedded in image regions can be OCR'd and combined with direct text, while suspicious PDF font mappings are rejected instead of being sent to translation as corrupted text. Full-page OCR is used only when direct extraction is unavailable or invalid. The manifest distinguishes direct, OCR, mixed direct/OCR, failed, and skipped pages.
+
 ## Translate extracted text to English
 
 Translate every extracted page with the configured Google model:

@@ -322,7 +322,7 @@ def main() -> None:
 
         print(
             f"Extraction complete: {result.direct_text_pages} direct-text, "
-            f"{result.ocr_pages} OCR, {result.skipped_pages} skipped, "
+                f"{result.ocr_pages} OCR, {result.mixed_pages} mixed direct/OCR, {result.skipped_pages} skipped, "
             f"{result.failed_pages} failed."
         )
         print(f"Extracted text saved in: {result.output_dir}")
